@@ -6,8 +6,8 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 
@@ -44,6 +44,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                         //修改msg中的Host
                         FullHttpRequest request = (FullHttpRequest)msg;
                         request.headers().set("Host",rewrite_host);
+                        log.info("Request：{}",request);
                         future.channel().writeAndFlush(request);
                     } else {
                         ctx.channel().close();
@@ -73,6 +74,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 cf.addListener(new ChannelFutureListener() {
                     public void operationComplete(ChannelFuture future) throws Exception {
                         if (future.isSuccess()) {
+                            //response 直接返回就好
                             future.channel().writeAndFlush(msg);
                         } else {
                             ctx.channel().close();
