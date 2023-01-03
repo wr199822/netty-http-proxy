@@ -22,8 +22,6 @@ public class HttpProxyServerChannelInitializer extends ChannelInitializer<Socket
     @Autowired
     private HttpProxyServerHandler httpProxyServerHandler;
 
-    @Autowired
-    private HttpProxyServerHandle httpProxyServerHandle;
 
 
     @Override
@@ -32,7 +30,7 @@ public class HttpProxyServerChannelInitializer extends ChannelInitializer<Socket
         ch.pipeline().addLast("httpCodec",new HttpServerCodec());
         ch.pipeline().addLast("httpObject",new HttpObjectAggregator(65536));
         //2.自定义处理Http的业务Handler
-        pipeline.addLast(httpProxyServerHandle);
+        pipeline.addLast("httpProxyServerHandle",new HttpProxyServerHandle());
     }
 }
 

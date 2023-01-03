@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-@ChannelHandler.Sharable
 public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
 
@@ -30,15 +29,20 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     private ChannelFuture cf;
 
     @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        //连接至目标服务器
+        Bootstrap bootstrap = new Bootstrap();
+        bootstrap.group(new NioEventLoopGroup(4)) // 注册线程池
+                .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
+                .handler(new HttpProxyClientInitializer(ctx.channel()));
+
+        cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
+
+    }
+
+    @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         if (cf == null) {
-            //连接至目标服务器
-            Bootstrap bootstrap = new Bootstrap();
-            bootstrap.group(new NioEventLoopGroup(4)) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .handler(new HttpProxyClientInitializer(ctx.channel()));
-
-            cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
             cf.addListener(new ChannelFutureListener() {
                 public void operationComplete(ChannelFuture future) throws Exception {
                     if (future.isSuccess()) {
@@ -52,9 +56,20 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 }
             });
         }else{
-            cf.channel().writeAndFlush(msg);
+            FullHttpRequest request = (FullHttpRequest) msg;
+            request.headers().set("Host", rewriteHost);
+            cf.channel().writeAndFlush(request);
         }
     }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx,
+                                Throwable cause) {
+        cause.printStackTrace();
+        ctx.close();
+    }
+
+
 
 
 }
