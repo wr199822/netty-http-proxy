@@ -1,15 +1,16 @@
-package com.example.worker01.handler;
+package com.example.worker01.client;
 
+import com.example.worker01.handler.HttpProxyClientHandle;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 
-public class HttpProxyInitializer extends ChannelInitializer {
+public class HttpProxyClientInitializer extends ChannelInitializer {
 
     private Channel clientChannel;
 
-    public HttpProxyInitializer(Channel clientChannel) {
+    public HttpProxyClientInitializer(Channel clientChannel) {
         this.clientChannel = clientChannel;
     }
 

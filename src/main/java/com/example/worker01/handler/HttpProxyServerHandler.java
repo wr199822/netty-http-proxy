@@ -34,13 +34,13 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 @ChannelHandler.Sharable
 public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
-    @Value("${netty.target_ip}")
+    @Value("${netty.target-ip}")
     private String target_ip;
 
-    @Value("${netty.target_port}")
+    @Value("${netty.target-port}")
     private String target_port;
 
-    @Value("${netty.rewrite_host}")
+    @Value("${netty.rewrite-host}")
     private String rewrite_host;
 
 

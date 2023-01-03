@@ -1,11 +1,9 @@
 package com.example.worker01.handler;
 
+import com.example.worker01.client.HttpProxyClientInitializer;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpResponse;
-import io.netty.handler.codec.http.HttpVersion;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -17,14 +15,14 @@ import org.springframework.stereotype.Component;
 public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
 
-    @Value("${netty.target_ip}")
-    private String target_ip;
+    @Value("${netty.target-ip}")
+    private String targetIp;
 
-    @Value("${netty.target_port}")
-    private String target_port;
+    @Value("${netty.target-port}")
+    private String targetPort;
 
-    @Value("${netty.rewrite_host}")
-    private String rewrite_host;
+    @Value("${netty.rewrite-host}")
+    private String rewriteHost;
 
     private ChannelFuture cf;
 
@@ -35,16 +33,15 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(ctx.channel().eventLoop()) // 注册线程池
                     .channel(ctx.channel().getClass()) // 使用NioSocketChannel来作为连接用的channel类
-                    .handler(new HttpProxyInitializer(ctx.channel()));
+                    .handler(new HttpProxyClientInitializer(ctx.channel()));
 
-            ChannelFuture cf = bootstrap.connect(target_ip, Integer.parseInt(target_port));
+            ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
             cf.addListener(new ChannelFutureListener() {
                 public void operationComplete(ChannelFuture future) throws Exception {
                     if (future.isSuccess()) {
                         //修改msg中的Host
                         FullHttpRequest request = (FullHttpRequest)msg;
-                        request.headers().set("Host",rewrite_host);
-                        log.info("Request：{}",request);
+                        request.headers().set("Host",rewriteHost);
                         future.channel().writeAndFlush(request);
                     } else {
                         ctx.channel().close();
@@ -70,11 +67,12 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                                 });
                             }
                         });
-                cf = bootstrap.connect(target_ip, Integer.parseInt(target_port));
+                cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
                 cf.addListener(new ChannelFutureListener() {
                     public void operationComplete(ChannelFuture future) throws Exception {
                         if (future.isSuccess()) {
                             //response 直接返回就好
+                            //拿服务器的channel
                             future.channel().writeAndFlush(msg);
                         } else {
                             ctx.channel().close();
