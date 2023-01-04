@@ -11,6 +11,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+
 
 @Slf4j
 @Component
@@ -28,11 +34,13 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     private Channel ch;
 
+    private ArrayBlockingQueue<FullHttpRequest> queue = new ArrayBlockingQueue<FullHttpRequest>(1024);
+
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         //连接至目标服务器
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(new NioEventLoopGroup(4)) // 注册线程池
+        bootstrap.group(ctx.channel().eventLoop()) // 注册线程池
                 .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
                 .handler(new HttpProxyClientInitializer(ctx.channel()));
 
@@ -53,10 +61,22 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         FullHttpRequest request = (FullHttpRequest) msg;
         request.headers().set("Host", rewriteHost);
         if (ch == null) {
-            //ch==null的情況是异常情况  也走不到这一步 正常如果ch ==null 说明连接建立的不成功
-            ctx.channel().close();
+            //ch==null 可能是Target 连接正在建也可能是连接不成功 我们先把消息存起来
+            //如果消息堆积过多应该怎么办呢？
+            boolean offer = queue.offer(request);
+            if (!offer){
+                new Exception("消息堆积过多");
+                ctx.channel().close();
+            }
+
         }else{
-            ch.writeAndFlush(request);
+            if (queue.peek()==null){
+                ch.writeAndFlush(request);
+            }else{
+                while (queue.peek() != null) {
+                    ch.writeAndFlush(queue.poll());
+                }
+            }
         }
     }
 
