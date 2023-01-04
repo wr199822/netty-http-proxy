@@ -26,7 +26,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     @Value("${netty.rewrite-host}")
     private String rewriteHost;
 
-    private ChannelFuture cf;
+    private Channel ch;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -36,29 +36,27 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
                 .handler(new HttpProxyClientInitializer(ctx.channel()));
 
-        cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
-
+        ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
+        cf.addListener(new ChannelFutureListener() {
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()) {
+                    ch = cf.channel();
+                } else {
+                    ctx.channel().close();
+                }
+            }
+        });
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        if (cf == null) {
-            cf.addListener(new ChannelFutureListener() {
-                public void operationComplete(ChannelFuture future) throws Exception {
-                    if (future.isSuccess()) {
-                        //修改msg中的Host
-                        FullHttpRequest request = (FullHttpRequest) msg;
-                        request.headers().set("Host", rewriteHost);
-                        future.channel().writeAndFlush(request);
-                    } else {
-                        ctx.channel().close();
-                    }
-                }
-            });
+        FullHttpRequest request = (FullHttpRequest) msg;
+        request.headers().set("Host", rewriteHost);
+        if (ch == null) {
+            //ch==null的情況是异常情况  也走不到这一步 正常如果ch ==null 说明连接建立的不成功
+            ctx.channel().close();
         }else{
-            FullHttpRequest request = (FullHttpRequest) msg;
-            request.headers().set("Host", rewriteHost);
-            cf.channel().writeAndFlush(request);
+            ch.writeAndFlush(request);
         }
     }
 
@@ -68,6 +66,8 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         cause.printStackTrace();
         ctx.close();
     }
+
+
 
 
 
