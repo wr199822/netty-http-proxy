@@ -22,6 +22,8 @@ public class HttpProxyServer {
     @Value("${netty.port}")
     private int port;
 
+
+
     private NioEventLoopGroup bossGroup = new NioEventLoopGroup(1);
 
     private NioEventLoopGroup workerGroup = new NioEventLoopGroup(1);
