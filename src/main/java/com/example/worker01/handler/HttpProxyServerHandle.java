@@ -1,6 +1,7 @@
 package com.example.worker01.handler;
 
 import com.example.worker01.client.HttpProxyClientInitializer;
+import com.example.worker01.config.BootstrapManage;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
@@ -13,6 +14,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -35,9 +37,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     private int readIdleTimes;
 
-    //先放这里 如果以后其他地方需要用到在抽取出来
-    private Map<String, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
-
     private Channel ch;
 
     private ArrayBlockingQueue<FullHttpRequest> queue = new ArrayBlockingQueue<FullHttpRequest>(1024);
@@ -57,16 +56,14 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         String ip = String.valueOf(insocket.getAddress());
         //连接至目标服务器
         Bootstrap bootstrap ;
-        if (bootstrapMap.get(ip)==null){
+        if (BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop())==null){
             bootstrap = new Bootstrap();
             bootstrap.group(ctx.channel().eventLoop()) // 注册线程池
                     .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .handler(new HttpProxyClientInitializer(ctx.channel()))
-                    .option(ChannelOption.TCP_NODELAY, true)//立即写出
-                    .option(ChannelOption.SO_KEEPALIVE, true);//长连接
-            bootstrapMap.put(ip,bootstrap);
+                    .handler(new HttpProxyClientInitializer(ctx.channel()));
+            BootstrapManage.bootstrapMap.put(ctx.channel().eventLoop(),bootstrap);
         }else{
-            bootstrap = bootstrapMap.get(ip);
+            bootstrap = BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop());
         }
 
 
@@ -91,14 +88,18 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             //如果消息堆积过多应该怎么办呢？
             boolean offer = queue.offer(request);
             if (!offer){
+                System.out.println("消息过多");
                 ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
                 throw new Exception("消息堆积过多");
             }
+            System.out.println("ch == null 情况");
 
         }else{
             if (queue.peek()==null){
+                System.out.println("peek null");
                 ch.writeAndFlush(request);
             }else{
+                System.out.println("peek not null");
                 while (queue.peek() != null) {
                     ch.writeAndFlush(queue.poll());
                 }
@@ -133,9 +134,11 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         // 当读超时超过 3 次，我们就端口该客户端的连接
         // 注：读超时超过 3 次，代表起码有 4 次 10s 内客户端没有发送心跳包或普通数据包
         if (readIdleTimes > 3) {
+            System.out.println("读超时消息");
             ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_TIMEOUT, Unpooled.wrappedBuffer("读超时3次 关闭连接！".getBytes())));
             ctx.channel().close(); // 手动断开连接
-            log.info("读超时，关闭客户端{}长连接成功",ctx.channel().remoteAddress());
+            ch.close();
+            log.info("读超时，关闭两端长连接成功");
         }
     }
 

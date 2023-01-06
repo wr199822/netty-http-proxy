@@ -2,6 +2,7 @@ package com.example.worker01.config;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
+import io.netty.channel.EventLoop;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class BootstrapManage {
 
-    private Map<String, Bootstrap> channelMap = new ConcurrentHashMap<>();
+    public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
     
     //判断bootstrap是否存在
     

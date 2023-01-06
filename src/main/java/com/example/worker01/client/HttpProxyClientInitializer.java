@@ -20,7 +20,7 @@ public class HttpProxyClientInitializer extends ChannelInitializer {
 
     @Override
     protected void initChannel(Channel ch) throws Exception {
-        ch.pipeline().addLast(new IdleStateHandler(10,0,0));
+        //这个对于服务端来说是客户端  客户端维持长连接应该是定时发送心跳包
         ch.pipeline().addLast(new HttpClientCodec());
         ch.pipeline().addLast(new HttpObjectAggregator(6553600));
         ch.pipeline().addLast(new HttpProxyClientHandle(clientChannel));
