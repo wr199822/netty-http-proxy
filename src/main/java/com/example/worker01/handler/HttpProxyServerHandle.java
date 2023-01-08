@@ -25,7 +25,6 @@ import java.util.concurrent.TransferQueue;
 
 
 @Slf4j
-@Component
 public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
 
@@ -37,6 +36,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     private int readIdleTimes;
 
+    private ChannelFuture cf;
     private Channel ch;
     //连接至目标服务器
     Bootstrap bootstrap ;
@@ -67,18 +67,30 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         }else{
             bootstrap = BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop());
         }
+         cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
+         cf.addListener(new ChannelFutureListener() {
+            //1. 在连接成功之后会在加入到reactor 监听的异步任务中
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()) {
+                    ch = cf.channel();
+                } else {
+                    ctx.channel().close();
+                }
+            }
+        });
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         //2. 这里的执行流程是
         if (ch == null) {
-            ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
+
             cf.addListener(new ChannelFutureListener() {
                 //1. 在连接成功之后会在加入到reactor 监听的异步任务中
                 public void operationComplete(ChannelFuture future) throws Exception {
                     if (future.isSuccess()) {
                         ch = cf.channel();
+                        //这一步其实就相当于把msg保存起来了
                         //修改msg中的Host
                         FullHttpRequest request = (FullHttpRequest) msg;
                         request.headers().set("Host", rewriteHost);
