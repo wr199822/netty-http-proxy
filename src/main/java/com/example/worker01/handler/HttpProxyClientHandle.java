@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
 
-    private int readIdleTimes;
 
     private Channel clientChannel;
 
@@ -28,6 +27,5 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         System.out.println("服务端消息"+(FullHttpResponse)msg);
         clientChannel.writeAndFlush(msg);
     }
-
 
 }

@@ -38,8 +38,11 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     private int readIdleTimes;
 
     private Channel ch;
+    //连接至目标服务器
+    Bootstrap bootstrap ;
 
-    private ArrayBlockingQueue<FullHttpRequest> queue = new ArrayBlockingQueue<FullHttpRequest>(1024);
+
+
 
     public HttpProxyServerHandle(String targetIp, String targetPort, String rewriteHost) {
         this.targetIp = targetIp;
@@ -54,8 +57,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         InetSocketAddress insocket = (InetSocketAddress)ctx.channel().remoteAddress();
         String ip = String.valueOf(insocket.getAddress());
-        //连接至目标服务器
-        Bootstrap bootstrap ;
+
         if (BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop())==null){
             bootstrap = new Bootstrap();
             bootstrap.group(ctx.channel().eventLoop()) // 注册线程池
@@ -65,45 +67,31 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         }else{
             bootstrap = BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop());
         }
-
-
-        ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
-        cf.addListener(new ChannelFutureListener() {
-            public void operationComplete(ChannelFuture future) throws Exception {
-                if (future.isSuccess()) {
-                    ch = cf.channel();
-                } else {
-                    ctx.channel().close();
-                }
-            }
-        });
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        FullHttpRequest request = (FullHttpRequest) msg;
-        request.headers().set("Host", rewriteHost);
+        //2. 这里的执行流程是
         if (ch == null) {
-            //ch==null 可能是Target 连接正在建也可能是连接不成功 我们先把消息存起来
-            //如果消息堆积过多应该怎么办呢？
-            boolean offer = queue.offer(request);
-            if (!offer){
-                System.out.println("消息过多");
-                ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
-                throw new Exception("消息堆积过多");
-            }
-            System.out.println("ch == null 情况");
-
-        }else{
-            if (queue.peek()==null){
-                System.out.println("peek null");
-                ch.writeAndFlush(request);
-            }else{
-                System.out.println("peek not null");
-                while (queue.peek() != null) {
-                    ch.writeAndFlush(queue.poll());
+            ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
+            cf.addListener(new ChannelFutureListener() {
+                //1. 在连接成功之后会在加入到reactor 监听的异步任务中
+                public void operationComplete(ChannelFuture future) throws Exception {
+                    if (future.isSuccess()) {
+                        ch = cf.channel();
+                        //修改msg中的Host
+                        FullHttpRequest request = (FullHttpRequest) msg;
+                        request.headers().set("Host", rewriteHost);
+                        ch.writeAndFlush(request);
+                    } else {
+                        ctx.channel().close();
+                    }
                 }
-            }
+            });
+        }else{
+            FullHttpRequest request = (FullHttpRequest) msg;
+            request.headers().set("Host", rewriteHost);
+            ch.writeAndFlush(request);
         }
     }
 
