@@ -37,7 +37,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     private int readIdleTimes;
 
     private ChannelFuture cf;
-    private Channel ch;
     //连接至目标服务器
     Bootstrap bootstrap ;
 
@@ -68,42 +67,28 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             bootstrap = BootstrapManage.bootstrapMap.get(ctx.channel().eventLoop());
         }
          cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
-         cf.addListener(new ChannelFutureListener() {
-            //1. 在连接成功之后会在加入到reactor 监听的异步任务中
-            public void operationComplete(ChannelFuture future) throws Exception {
-                if (future.isSuccess()) {
-                    ch = cf.channel();
-                } else {
-                    ctx.channel().close();
-                }
-            }
-        });
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+        FullHttpRequest request = (FullHttpRequest) msg;
+        request.headers().set("Host", rewriteHost);
         //2. 这里的执行流程是
-        if (ch == null) {
-
+        if (cf == null) {
             cf.addListener(new ChannelFutureListener() {
                 //1. 在连接成功之后会在加入到reactor 监听的异步任务中
                 public void operationComplete(ChannelFuture future) throws Exception {
                     if (future.isSuccess()) {
-                        ch = cf.channel();
                         //这一步其实就相当于把msg保存起来了
                         //修改msg中的Host
-                        FullHttpRequest request = (FullHttpRequest) msg;
-                        request.headers().set("Host", rewriteHost);
-                        ch.writeAndFlush(request);
+                        cf.channel().writeAndFlush(request);
                     } else {
                         ctx.channel().close();
                     }
                 }
             });
         }else{
-            FullHttpRequest request = (FullHttpRequest) msg;
-            request.headers().set("Host", rewriteHost);
-            ch.writeAndFlush(request);
+            cf.channel().writeAndFlush(request);
         }
     }
 
@@ -137,7 +122,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             System.out.println("读超时消息");
             ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_TIMEOUT, Unpooled.wrappedBuffer("读超时3次 关闭连接！".getBytes())));
             ctx.channel().close(); // 手动断开连接
-            ch.close();
+            cf.channel().close();
             log.info("读超时，关闭两端长连接成功");
         }
     }
