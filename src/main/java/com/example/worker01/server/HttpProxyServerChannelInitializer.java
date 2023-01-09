@@ -40,9 +40,9 @@ public class HttpProxyServerChannelInitializer extends ChannelInitializer<Socket
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline pipeline = ch.pipeline();
-        ch.pipeline().addLast(new IdleStateHandler(10,0,0));
         ch.pipeline().addLast("httpCodec",new HttpServerCodec());
         ch.pipeline().addLast("httpObject",new HttpObjectAggregator(65536));
+//        ch.pipeline().addLast(new IdleStateHandler(1800,1800,0));
         //2.自定义处理Http的业务Handler
         pipeline.addLast("httpProxyServerHandle",new HttpProxyServerHandle(targetIp,targetPort,rewriteHost));
     }
