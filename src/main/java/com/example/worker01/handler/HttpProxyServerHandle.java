@@ -33,7 +33,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     private int readIdleTimes;
 
-    private ChannelFuture cf;
     private Channel ch;
     private long start;
     private long end;
@@ -88,8 +87,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             log.info("read 客户端channel{}", ctx.channel());
             log.info("queue的大小{}",queue.size());
             if (ch == null) {
-                //ch==null 可能是Target 连接正在建也可能是连接不成功 我们先把消息存起来
-                //如果消息堆积过多应该怎么办呢？
                 boolean offer = queue.offer(request);
                 if (!offer) {
                     System.out.println("消息过多");
@@ -99,7 +96,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 System.out.println("ch == null 情况");
 
             } else {
-                log.info("read 服务端channel{}", ctx.channel());
+                log.info("read 服务端channel{}", ch);
                 if (queue.peek() == null) {
                     System.out.println("peek null");
                     ch.writeAndFlush(request);
@@ -121,45 +118,45 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         ctx.close();
     }
 
-//    @Override
-//    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-////        System.out.println(evt);
-//        if (evt instanceof IdleStateEvent) {
-//            // 入站的消息就是 IdleStateEvent 具体的事件
-//            IdleStateEvent event = (IdleStateEvent) evt;
-//            System.out.println(event.state());
-//            // 所以，这里我们需要判断事件类型
-//            switch (event.state()) {
-//                case READER_IDLE:
-//                    readIdleTimes++; // 读空闲的计数加 1
-//                    break;
-//                case WRITER_IDLE:
-//                    break; // 不处理
-//                case ALL_IDLE:
-//                    break; // 不处理
-//            }
-//
-//
-//            // 当读超时超过 3 次，我们就端口该客户端的连接
-//            // 注：读超时超过 3 次，代表起码有 4 次 10s 内客户端没有发送心跳包或普通数据包
-//            if (readIdleTimes > 3) {
-//                System.out.println("读超时消息");
-////            ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_TIMEOUT, Unpooled.wrappedBuffer("读超时3次 关闭连接！".getBytes())));
-//                ctx.channel().close(); // 手动断开连接
-//                cf.channel().close();
-//                log.info("读超时，关闭两端长连接成功");
-//            }
-//        }else{
-//            System.out.println("userEventTriggered not IdleStateEvent");
-//            super.userEventTriggered(ctx, evt);
-//        }
-//    }
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+//        System.out.println(evt);
+        if (evt instanceof IdleStateEvent) {
+            // 入站的消息就是 IdleStateEvent 具体的事件
+            IdleStateEvent event = (IdleStateEvent) evt;
+            System.out.println(event.state());
+            // 所以，这里我们需要判断事件类型
+            switch (event.state()) {
+                case READER_IDLE:
+                    readIdleTimes++; // 读空闲的计数加 1
+                    break;
+                case WRITER_IDLE:
+                    break; // 不处理
+                case ALL_IDLE:
+                    break; // 不处理
+            }
+
+
+            // 当读超时超过 3 次，我们就端口该客户端的连接
+            // 注：读超时超过 3 次，代表起码有 4 次 10s 内客户端没有发送心跳包或普通数据包
+            if (readIdleTimes > 3) {
+                System.out.println("读超时消息");
+//            ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.REQUEST_TIMEOUT, Unpooled.wrappedBuffer("读超时3次 关闭连接！".getBytes())));
+                ctx.channel().close(); // 手动断开连接
+                ch.close();
+                log.info("读超时，关闭两端长连接成功");
+            }
+        }else{
+            System.out.println("userEventTriggered not IdleStateEvent");
+            super.userEventTriggered(ctx, evt);
+        }
+    }
 
 
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         end = System.currentTimeMillis();
-        log.info("程序运行时间:{}",end-start);  //21060  21054
+        log.info("程序运行时间:{}",end-start);
         System.out.println("Channel-移除");
         super.channelUnregistered(ctx);
     }

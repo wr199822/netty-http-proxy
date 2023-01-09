@@ -24,7 +24,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         //这是写response消息的  用serverhandle的channel 给客户端发送response请求
-        System.out.println("服务端消息"+(FullHttpResponse)msg);
+        log.info("服务端消息"+(FullHttpResponse)msg);
         clientChannel.writeAndFlush(msg);
     }
 
