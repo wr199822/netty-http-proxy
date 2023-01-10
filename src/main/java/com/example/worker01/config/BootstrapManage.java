@@ -18,7 +18,15 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BootstrapManage {
 
     public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
-    
-    //判断bootstrap是否存在
+
+    public static Bootstrap put(EventLoop eventLoop,Bootstrap bootstrap){
+        Bootstrap put = bootstrapMap.putIfAbsent(eventLoop, bootstrap);
+        return put;
+    }
+
+    public static Bootstrap get(EventLoop eventLoop){
+        Bootstrap get = bootstrapMap.get(eventLoop);
+        return get;
+    }
     
 }

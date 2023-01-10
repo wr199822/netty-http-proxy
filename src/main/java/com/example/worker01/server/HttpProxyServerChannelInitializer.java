@@ -22,10 +22,6 @@ import java.util.concurrent.TimeUnit;
 public class HttpProxyServerChannelInitializer extends ChannelInitializer<SocketChannel> implements ChannelHandler {
 
 
-
-    @Autowired
-    private HttpProxyServerHandler httpProxyServerHandler;
-
     @Value("${netty.target-ip}")
     private String targetIp;
 
