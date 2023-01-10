@@ -2,6 +2,7 @@ package com.example.worker01.config;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.EventLoop;
+import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 @Component
 public class BootstrapManage {
+
+    public static final AttributeKey<String> SET_SERVER_CHANNEL = AttributeKey.newInstance("setServerChannel");
 
     public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
 

@@ -28,17 +28,17 @@ public class LongConnTest {
         socket.connect(new InetSocketAddress(host, port));
         Scanner scanner = new Scanner(System.in);
         BufferedWriter bufferedWriter = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
-        new Thread(() -> {
-            while (true) {
-                try {
-                    byte[] input = new byte[64];
-                    int readByte = socket.getInputStream().read(input);
-                    logger.debug("readByte " + readByte);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }).start();
+//        new Thread(() -> {
+//            while (true) {
+//                try {
+//                    byte[] input = new byte[64];
+//                    int readByte = socket.getInputStream().read(input);
+//                    logger.debug("readByte " + readByte);
+//                } catch (IOException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//        }).start();
         int code;
         while (true) {
             code = scanner.nextInt();
