@@ -7,19 +7,9 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.*;
-import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import org.springframework.util.CollectionUtils;
-
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TransferQueue;
 
 
 @Slf4j
@@ -68,7 +58,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         cf.addListener(new ChannelFutureListener() {
             public void operationComplete(ChannelFuture future) throws Exception {
                 if (future.isSuccess()) {
-                    log.info("read 服务端channel{}", serverCh);
                     serverCh = cf.channel();
                     ctx.channel().attr(BootstrapManage.SET_SERVER_CHANNEL).set("1");
                     serverCh.pipeline().fireUserEventTriggered(ctx.channel());
@@ -78,7 +67,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 }
             }
         });
-        queue.clear();
+        releaseQueue(queue);
     }
 
     @Override
@@ -91,7 +80,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
             }
         } else {
-
             if (queue.peek() == null) {
                 serverCh.writeAndFlush(request);
             } else {
@@ -107,8 +95,16 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx,
                                 Throwable cause) {
         cause.printStackTrace();
-        queue.clear();
+        releaseQueue(queue);
         ctx.close();
+    }
+
+    private void releaseQueue(Queue<FullHttpRequest> queue){
+        int size = queue.size();
+        for (int i = 0; i < size; i++) {
+            FullHttpRequest poll = queue.poll();
+            poll.release();
+        }
     }
 
 //    @Override

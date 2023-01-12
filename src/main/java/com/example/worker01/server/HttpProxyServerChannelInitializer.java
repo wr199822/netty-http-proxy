@@ -5,16 +5,11 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.socket.SocketChannel;
-import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpObjectAggregator;
-
 import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.timeout.IdleStateHandler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.TimeUnit;
 
 
 @Component
@@ -37,6 +32,7 @@ public class HttpProxyServerChannelInitializer extends ChannelInitializer<Socket
         ChannelPipeline pipeline = ch.pipeline();
         ch.pipeline().addLast("httpCodec",new HttpServerCodec());
         ch.pipeline().addLast("httpObject",new HttpObjectAggregator(65536));
+//        ch.pipeline().addLast(new IdleStateHandler(10,0,0));
         //2.自定义处理Http的业务Handler
         pipeline.addLast("httpProxyServerHandle",new HttpProxyServerHandle(targetIp,targetPort,rewriteHost));
     }
