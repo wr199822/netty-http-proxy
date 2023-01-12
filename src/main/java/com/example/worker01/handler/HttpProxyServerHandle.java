@@ -63,11 +63,12 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                     serverCh.pipeline().fireUserEventTriggered(ctx.channel());
                 } else {
                     log.info("未连上服务器端，关闭客户端channel");
+                    releaseQueue();
                     ctx.channel().close();
                 }
             }
         });
-        releaseQueue(queue);
+
     }
 
     @Override
@@ -95,15 +96,16 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx,
                                 Throwable cause) {
         cause.printStackTrace();
-        releaseQueue(queue);
+        releaseQueue();
         ctx.close();
     }
 
-    private void releaseQueue(Queue<FullHttpRequest> queue){
+    private void releaseQueue(){
         int size = queue.size();
         for (int i = 0; i < size; i++) {
             FullHttpRequest poll = queue.poll();
-            poll.release();
+            assert poll.content().refCnt()==1;
+            poll.content().release();
         }
     }
 
