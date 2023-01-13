@@ -1,7 +1,10 @@
 package com.example.worker01.config;
 
+import com.example.worker01.client.HttpProxyClientInitializer;
 import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoop;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -22,14 +25,22 @@ public class BootstrapManage {
 
     public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
 
-    public static Bootstrap put(EventLoop eventLoop,Bootstrap bootstrap){
-        Bootstrap put = bootstrapMap.putIfAbsent(eventLoop, bootstrap);
-        return put;
+    public static Bootstrap getBootstrap(EventLoop eventLoop){
+        //连接至目标服务器
+        Bootstrap bootstrap ;
+        if (bootstrapMap.get(eventLoop)==null){
+            bootstrap = new Bootstrap();
+            bootstrap.group(eventLoop) // 注册线程池
+                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
+                    .handler(new HttpProxyClientInitializer())
+                    .option(ChannelOption.TCP_NODELAY,true)
+                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
+            bootstrapMap.putIfAbsent(eventLoop, bootstrap);
+        }else{
+            bootstrap = bootstrapMap.get(eventLoop);
+        }
+        return bootstrap;
     }
 
-    public static Bootstrap get(EventLoop eventLoop){
-        Bootstrap get = bootstrapMap.get(eventLoop);
-        return get;
-    }
     
 }

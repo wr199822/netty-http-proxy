@@ -40,20 +40,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         log.info("read 客户端channel{}", ctx.channel());
         EventLoop eventLoop = ctx.channel().eventLoop();
-        //连接至目标服务器
-        Bootstrap bootstrap ;
-        if (BootstrapManage.get(eventLoop)==null){
-            bootstrap = new Bootstrap();
-            bootstrap.group(ctx.channel().eventLoop()) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .handler(new HttpProxyClientInitializer());
-            bootstrap.option(ChannelOption.TCP_NODELAY,true);
-            BootstrapManage.put(eventLoop,bootstrap);
-        }else{
-            bootstrap = BootstrapManage.get(eventLoop);
-        }
-
-
+        Bootstrap bootstrap = BootstrapManage.getBootstrap(eventLoop);
         ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
         cf.addListener(new ChannelFutureListener() {
             public void operationComplete(ChannelFuture future) throws Exception {
@@ -63,7 +50,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                     serverCh.pipeline().fireUserEventTriggered(ctx.channel());
                 } else {
                     log.info("未连上服务器端，关闭客户端channel");
-                    releaseQueue();
                     ctx.channel().close();
                 }
             }
@@ -96,15 +82,19 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx,
                                 Throwable cause) {
         cause.printStackTrace();
-        releaseQueue();
         ctx.close();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        releaseQueue();
+        super.channelInactive(ctx);
     }
 
     private void releaseQueue(){
         int size = queue.size();
         for (int i = 0; i < size; i++) {
             FullHttpRequest poll = queue.poll();
-            assert poll.content().refCnt()==1;
             poll.content().release();
         }
     }
