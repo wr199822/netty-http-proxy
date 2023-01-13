@@ -21,8 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class BootstrapManage {
 
-    public static final AttributeKey<String> SET_SERVER_CHANNEL = AttributeKey.newInstance("setServerChannel");
-
     public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
 
     public static Bootstrap getBootstrap(EventLoop eventLoop){

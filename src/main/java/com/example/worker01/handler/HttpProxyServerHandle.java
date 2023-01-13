@@ -1,14 +1,13 @@
 package com.example.worker01.handler;
 
-import com.example.worker01.client.HttpProxyClientInitializer;
 import com.example.worker01.config.BootstrapManage;
+import com.example.worker01.config.HttpProxyEvent;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
-import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.*;
+import io.netty.util.ReferenceCountUtil;
 import lombok.extern.slf4j.Slf4j;
-import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 
 
@@ -23,6 +22,8 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     private String rewriteHost;
 
     private Channel serverCh;
+
+    private boolean OneServerConnectTag =false;  //false 第一次连接  true第二次连接
 
 
     private ArrayBlockingQueue<FullHttpRequest> queue = new ArrayBlockingQueue<FullHttpRequest>(1024);
@@ -39,6 +40,11 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         log.info("read 客户端channel{}", ctx.channel());
+        connectServer(ctx);
+
+    }
+
+    private void connectServer(ChannelHandlerContext ctx){
         EventLoop eventLoop = ctx.channel().eventLoop();
         Bootstrap bootstrap = BootstrapManage.getBootstrap(eventLoop);
         ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
@@ -46,7 +52,9 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             public void operationComplete(ChannelFuture future) throws Exception {
                 if (future.isSuccess()) {
                     serverCh = cf.channel();
-                    ctx.channel().attr(BootstrapManage.SET_SERVER_CHANNEL).set("1");
+                    OneServerConnectTag = true;
+                    HttpProxyEvent httpProxyEvent = new HttpProxyEvent();
+                    httpProxyEvent.setChannel(ctx.channel());
                     serverCh.pipeline().fireUserEventTriggered(ctx.channel());
                 } else {
                     log.info("未连上服务器端，关闭客户端channel");
@@ -54,7 +62,6 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
                 }
             }
         });
-
     }
 
     @Override
@@ -65,6 +72,9 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             boolean offer = queue.offer(request);
             if (!offer) {
                 ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
+            }
+            if (OneServerConnectTag){
+                connectServer(ctx);
             }
         } else {
             if (queue.peek() == null) {
@@ -87,11 +97,11 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        releaseQueue();
-        super.channelInactive(ctx);
+        releaseQueue(ctx);
+        serverCh.close();
     }
 
-    private void releaseQueue(){
+    private void releaseQueue(ChannelHandlerContext ctx){
         int size = queue.size();
         for (int i = 0; i < size; i++) {
             FullHttpRequest poll = queue.poll();
@@ -99,25 +109,12 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         }
     }
 
-//    @Override
-//    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-//        if (evt instanceof IdleStateEvent) {
-//            IdleStateEvent event = (IdleStateEvent) evt;
-//            switch (event.state()) {
-//                case READER_IDLE:
-//                    ctx.channel().close(); // 手动断开连接
-//                    serverCh.close();
-//                    log.info("读超时，关闭两端连接成功");
-//                    break;
-//                case WRITER_IDLE:
-//                    break; // 不处理
-//                case ALL_IDLE:
-//                    break; // 不处理
-//            }
-//        }else{
-//            super.userEventTriggered(ctx, evt);
-//        }
-//    }
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof HttpProxyEvent && ((HttpProxyEvent) evt).getType().equals("1")){
+            serverCh = null;
+        }
+    }
 
 
 
