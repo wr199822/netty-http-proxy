@@ -23,7 +23,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
     private Channel serverCh;
 
-    private boolean OneServerConnectTag =false;  //false 第一次连接  true第二次连接
+    private boolean serverConnectTag =false;  //false 不可以连接  true可以连接
 
 
     private ArrayBlockingQueue<FullHttpRequest> queue = new ArrayBlockingQueue<FullHttpRequest>(1024);
@@ -52,7 +52,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             public void operationComplete(ChannelFuture future) throws Exception {
                 if (future.isSuccess()) {
                     serverCh = cf.channel();
-                    OneServerConnectTag = true;
+                    serverConnectTag = true;
                     HttpProxyEvent httpProxyEvent = new HttpProxyEvent();
                     httpProxyEvent.setChannel(ctx.channel());
                     serverCh.pipeline().fireUserEventTriggered(ctx.channel());
@@ -73,8 +73,11 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             if (!offer) {
                 ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
             }
-            if (OneServerConnectTag){
+            if (serverConnectTag){
                 connectServer(ctx);
+                //防止连续多条消息 照成多次连接
+                serverConnectTag =false;
+
             }
         } else {
             if (queue.peek() == null) {
