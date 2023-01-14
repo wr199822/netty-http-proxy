@@ -10,7 +10,7 @@ import io.netty.channel.Channel;
 public class HttpProxyEvent {
 
     private Channel channel;
-    private EventTypeEnum eventTypeEnum;  //0是传递channel  1是传递状态
+    private String type;  //0是传递channel  1是传递状态
 
     public Channel getChannel() {
         return channel;
@@ -20,15 +20,11 @@ public class HttpProxyEvent {
         this.channel = channel;
     }
 
-    public EventTypeEnum getEventTypeEnum() {
-        return eventTypeEnum;
+    public String getType() {
+        return type;
     }
 
-    public void setEventTypeEnum(EventTypeEnum eventTypeEnum) {
-        this.eventTypeEnum = eventTypeEnum;
-    }
-
-    public static enum EventTypeEnum{
-        CHANNEL,STATE
+    public void setType(String type) {
+        this.type = type;
     }
 }
