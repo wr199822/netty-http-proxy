@@ -23,14 +23,14 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         //服务端连接关闭了 客户端不动  但是下次客户端消息来了 需要重新连接服务端
         // 需要 客户端关闭了  服务端也要关闭 并且释放相关资源
         HttpProxyEvent httpProxyEvent = new HttpProxyEvent();
-        httpProxyEvent.setType("1");
+        httpProxyEvent.setEventTypeEnum(HttpProxyEvent.EventTypeEnum.STATE);
         clientChannel.pipeline().fireUserEventTriggered(httpProxyEvent);
     }
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         log.info("read 服务端channel{}", ctx.channel());
-        if (evt instanceof HttpProxyEvent && ((HttpProxyEvent) evt).getType().equals("0")){
+        if (evt instanceof HttpProxyEvent && ((HttpProxyEvent) evt).getEventTypeEnum().name().equals(HttpProxyEvent.EventTypeEnum.CHANNEL)){
             this.clientChannel = ((HttpProxyEvent) evt).getChannel();
         }
     }

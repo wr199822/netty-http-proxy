@@ -21,23 +21,21 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class BootstrapManage {
 
-    public static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
+    private static Map<EventLoop, Bootstrap> bootstrapMap = new ConcurrentHashMap<>();
 
     public static Bootstrap getBootstrap(EventLoop eventLoop){
-        //连接至目标服务器
-        Bootstrap bootstrap ;
-        if (bootstrapMap.get(eventLoop)==null){
-            bootstrap = new Bootstrap();
-            bootstrap.group(eventLoop) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                    .handler(new HttpProxyClientInitializer())
-                    .option(ChannelOption.TCP_NODELAY,true)
-                    .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
-            bootstrapMap.putIfAbsent(eventLoop, bootstrap);
-        }else{
-            bootstrap = bootstrapMap.get(eventLoop);
+        Bootstrap bootstrap = bootstrapMap.get(eventLoop);
+        if (bootstrap!=null) {
+            return bootstrap;
         }
+        bootstrap.group(eventLoop) // 注册线程池
+                .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
+                .handler(new HttpProxyClientInitializer())
+                .option(ChannelOption.TCP_NODELAY,true)
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
+        bootstrapMap.put(eventLoop, bootstrap);
         return bootstrap;
+
     }
 
     
