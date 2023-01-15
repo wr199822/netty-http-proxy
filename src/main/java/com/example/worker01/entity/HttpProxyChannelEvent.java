@@ -1,4 +1,4 @@
-package com.example.worker01.config;
+package com.example.worker01.entity;
 
 import io.netty.channel.Channel;
 
@@ -7,10 +7,9 @@ import io.netty.channel.Channel;
  * @description
  * @date 2023年01月13日 19:33
  */
-public class HttpProxyEvent {
+public class HttpProxyChannelEvent {
 
     private Channel channel;
-    private String type;  //0是传递channel  1是传递状态
 
     public Channel getChannel() {
         return channel;
@@ -18,13 +17,5 @@ public class HttpProxyEvent {
 
     public void setChannel(Channel channel) {
         this.channel = channel;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
     }
 }
