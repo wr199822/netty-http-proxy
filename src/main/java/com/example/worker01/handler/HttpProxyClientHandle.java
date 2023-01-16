@@ -56,7 +56,18 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             }
             serverCh = cf.channel();
             targetChannelState = ServerChannelEnum.READY;
-            serverCh.pipeline().fireUserEventTriggered(new ClientChannelAttachEvent(ctx.channel(),pendingRequestQueue));
+            serverCh.pipeline().fireUserEventTriggered(new ClientChannelAttachEvent(ctx.channel()));
+            while (pendingRequestQueue.peek() != null) {
+                FullHttpRequest fullHttpRequest = pendingRequestQueue.poll();
+                HttpProxyConst.reducePendingRequestQueueGlobalSize();
+                serverCh.writeAndFlush(fullHttpRequest).addListener((ChannelFutureListener) writeFuture -> {
+                    Throwable cause = writeFuture.cause();
+                    if (cause!=null){
+                        writeFuture.cause().printStackTrace();
+                        fullHttpRequest.content().release();
+                    }
+                });
+            }
         });
     }
 

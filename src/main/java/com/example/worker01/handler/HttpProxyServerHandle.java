@@ -1,16 +1,11 @@
 package com.example.worker01.handler;
 
-import com.example.worker01.config.HttpProxyConst;
 import com.example.worker01.entity.ClientChannelAttachEvent;
 import com.example.worker01.entity.TargetChannelDisconnectEvent;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.LinkedList;
-import java.util.Queue;
 
 @Slf4j
 public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
@@ -50,21 +45,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         log.info("read 服务端channel{}", ctx.channel());
         if (evt instanceof ClientChannelAttachEvent){
-            ClientChannelAttachEvent clientChannelAttachEvent = (ClientChannelAttachEvent) evt;
-            this.clientChannel = clientChannelAttachEvent.getChannel();
-            Queue<FullHttpRequest> pendingRequestQueue = clientChannelAttachEvent.getPendingRequestQueue();
-            // 这里保证了 queue 并不会堆积
-            while (pendingRequestQueue.peek() != null) {
-                FullHttpRequest fullHttpRequest = pendingRequestQueue.poll();
-                HttpProxyConst.reducePendingRequestQueueGlobalSize();
-                ctx.writeAndFlush(fullHttpRequest).addListener((ChannelFutureListener) future -> {
-                    Throwable cause = future.cause();
-                    if (cause!=null){
-                        future.cause().printStackTrace();
-                        fullHttpRequest.content().release();
-                    }
-                });
-            }
+            this.clientChannel = ((ClientChannelAttachEvent) evt).getChannel();
         }
     }
 }

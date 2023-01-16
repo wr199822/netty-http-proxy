@@ -1,5 +1,8 @@
 package com.example.worker01.config;
 
+
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * @author wangrui
  * @description
@@ -7,27 +10,27 @@ package com.example.worker01.config;
  */
 public class HttpProxyConst {
 
-    private static int  PendingRequestQueueGlobalSize = 0;
+    private static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
 
     public static int  PendingRequestQueueGlobalMaxSize = 10000;
 
     public static int addPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize++;
+        return PendingRequestQueueGlobalSize.getAndIncrement();
     }
 
     public static int reducePendingRequestQueueGlobalSize() {
-        if (PendingRequestQueueGlobalSize<0){
+        if (PendingRequestQueueGlobalSize.get()<0){
             return 0;
         }
-        return PendingRequestQueueGlobalSize--;
+        return PendingRequestQueueGlobalSize.getAndDecrement();
     }
 
     public static boolean checkPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize<=PendingRequestQueueGlobalMaxSize;
+        return PendingRequestQueueGlobalSize.get()<=PendingRequestQueueGlobalMaxSize;
     }
 
     public static int getPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize;
+        return PendingRequestQueueGlobalSize.get();
     }
 
 }

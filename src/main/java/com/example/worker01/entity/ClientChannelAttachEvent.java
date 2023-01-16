@@ -14,11 +14,9 @@ public class ClientChannelAttachEvent {
 
     private Channel channel;
 
-    private Queue<FullHttpRequest> pendingRequestQueue;
 
-    public ClientChannelAttachEvent(Channel channel, Queue<FullHttpRequest> pendingRequestQueue) {
+    public ClientChannelAttachEvent(Channel channel) {
         this.channel = channel;
-        this.pendingRequestQueue = pendingRequestQueue;
     }
 
     public ClientChannelAttachEvent() {
@@ -32,11 +30,5 @@ public class ClientChannelAttachEvent {
         this.channel = channel;
     }
 
-    public Queue<FullHttpRequest> getPendingRequestQueue() {
-        return pendingRequestQueue;
-    }
 
-    public void setPendingRequestQueue(Queue<FullHttpRequest> pendingRequestQueue) {
-        this.pendingRequestQueue = pendingRequestQueue;
-    }
 }
