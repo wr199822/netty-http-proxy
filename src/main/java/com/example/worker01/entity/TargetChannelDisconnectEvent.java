@@ -7,7 +7,7 @@ import io.netty.channel.Channel;
  * @description
  * @date 2023年01月13日 19:33
  */
-public class HttpProxyConnectEvent {
+public class TargetChannelDisconnectEvent {
 
     private String type;  //  1是传递状态
 

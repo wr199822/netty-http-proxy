@@ -1,6 +1,6 @@
 package com.example.worker01.config;
 
-import com.example.worker01.client.HttpProxyClientInitializer;
+import com.example.worker01.client.HttpProxyServerInitializer;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoop;
@@ -29,7 +29,7 @@ public class BootstrapManage {
         }
         bootstrap.group(eventLoop) // 注册线程池
                 .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
-                .handler(new HttpProxyClientInitializer())
+                .handler(new HttpProxyServerInitializer())
                 .option(ChannelOption.TCP_NODELAY,true)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
         bootstrapMap.put(eventLoop, bootstrap);

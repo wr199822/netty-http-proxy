@@ -1,131 +1,70 @@
 package com.example.worker01.handler;
 
-import com.example.worker01.config.BootstrapManage;
-import com.example.worker01.entity.HttpProxyChannelEvent;
-import com.example.worker01.entity.HttpProxyConnectEvent;
-import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.Unpooled;
+import com.example.worker01.config.HttpProxyConst;
+import com.example.worker01.entity.ClientChannelAttachEvent;
+import com.example.worker01.entity.TargetChannelDisconnectEvent;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
-import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import lombok.extern.slf4j.Slf4j;
+
 import java.util.LinkedList;
 import java.util.Queue;
-
 
 @Slf4j
 public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
 
-    private String targetIp;
-
-    private String targetPort;
-
-    private String rewriteHost;
-
-    private Channel serverCh;
-
-    private ServerChannelEnum state = ServerChannelEnum.INIT;
-
-    private Queue<FullHttpRequest> queue = new LinkedList<>();
-
-    public HttpProxyServerHandle(String targetIp, String targetPort, String rewriteHost) {
-        this.targetIp = targetIp;
-        this.targetPort = targetPort;
-        this.rewriteHost = rewriteHost;
-    }
-
-    public HttpProxyServerHandle() {
-    }
+    private Channel clientChannel;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        log.info("read 客户端channel{}", ctx.channel());
-        state = ServerChannelEnum.CONNECTING;
-        connectServer(ctx);
-    }
-
-    private void connectServer(ChannelHandlerContext ctx){
-        EventLoop eventLoop = ctx.channel().eventLoop();
-        Bootstrap bootstrap = BootstrapManage.getBootstrap(eventLoop);
-        ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
-        cf.addListener((ChannelFutureListener) future -> {
-            if (!future.isSuccess()) {
-                log.info("未连上服务器端，关闭客户端channel");
-                ctx.channel().close();
-                return;
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+//        log.info("接收服务端response{}",msg);
+        ChannelFuture channelFuture = clientChannel.writeAndFlush(msg);
+        channelFuture.addListener((ChannelFutureListener) future -> {
+            Throwable cause = future.cause();
+            if (cause!=null){
+                future.cause().printStackTrace();
+                ((FullHttpResponse)msg).release();
             }
-            serverCh = cf.channel();
-            state = ServerChannelEnum.READY;
-            HttpProxyChannelEvent httpProxyChannelEvent = new HttpProxyChannelEvent();
-            httpProxyChannelEvent.setChannel(ctx.channel());
-            serverCh.pipeline().fireUserEventTriggered(ctx.channel());
         });
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        FullHttpRequest request = (FullHttpRequest) msg;
-        request.headers().set("Host", rewriteHost);
-        switch (state){
-            case DISCONNECT:
-                state = ServerChannelEnum.CONNECTING;  //防止有多条消息 但是客户端正在连接
-                connectServer(ctx); //向后执行 保存这次的消息到queue中
-            case CONNECTING:
-                queue.offer(request);
-                if (queue.size()>1024) {
-                    ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
-                    ctx.close();
-                }
-                break;
-            case READY:
-                // 这里保证了 queue 并不会堆积
-                while (queue.peek() != null) {
-                    serverCh.writeAndFlush(queue.poll());
-                }
-                serverCh.writeAndFlush(request);
-                break;
-        }
-
-
-
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        //服务端连接关闭了 客户端不动  但是下次客户端消息来了 需要重新连接服务端
+        //  客户端关闭了  服务端也要关闭 并且释放相关资源
+        TargetChannelDisconnectEvent targetChannelDisconnectEvent = new TargetChannelDisconnectEvent();
+        clientChannel.pipeline().fireUserEventTriggered(targetChannelDisconnectEvent);
+        //如果客户端关闭 是先关闭的客户端连接 在关闭的服务端连接 如果这个时间点服务端来消息了 就会照成内存泄漏
+        //这部分逻辑迁移到了 写失败
+//        fullHttpResponse.content().release();
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx,
-                                Throwable cause) {
-        cause.printStackTrace();
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         ctx.close();
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        releaseQueue();
-        if (serverCh!=null){
-            //如果在 连接中 serverCh被关闭就可能会有NPE异常
-            serverCh.close();
-        }
-    }
-
-    private void releaseQueue(){
-        int size = queue.size();
-        for (int i = 0; i < size; i++) {
-            FullHttpRequest poll = queue.poll();
-            poll.content().release();
-        }
-    }
-
-    @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        if (evt instanceof HttpProxyConnectEvent){
-            serverCh = null;
-            state =  ServerChannelEnum.DISCONNECT;
+        log.info("read 服务端channel{}", ctx.channel());
+        if (evt instanceof ClientChannelAttachEvent){
+            ClientChannelAttachEvent clientChannelAttachEvent = (ClientChannelAttachEvent) evt;
+            this.clientChannel = clientChannelAttachEvent.getChannel();
+            Queue<FullHttpRequest> pendingRequestQueue = clientChannelAttachEvent.getPendingRequestQueue();
+            // 这里保证了 queue 并不会堆积
+            while (pendingRequestQueue.peek() != null) {
+                FullHttpRequest fullHttpRequest = pendingRequestQueue.poll();
+                HttpProxyConst.reducePendingRequestQueueGlobalSize();
+                ctx.writeAndFlush(fullHttpRequest).addListener((ChannelFutureListener) future -> {
+                    Throwable cause = future.cause();
+                    if (cause!=null){
+                        future.cause().printStackTrace();
+                        fullHttpRequest.content().release();
+                    }
+                });
+            }
         }
     }
-
-
-    private enum ServerChannelEnum{
-        INIT,CONNECTING,READY,DISCONNECT
-    }
-
-
-
 }

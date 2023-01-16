@@ -1,6 +1,6 @@
 package com.example.worker01.server;
 
-import com.example.worker01.handler.HttpProxyServerHandle;
+import com.example.worker01.handler.HttpProxyClientHandle;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 
 
 @Component
-public class HttpProxyServerChannelInitializer extends ChannelInitializer<SocketChannel> implements ChannelHandler {
+public class HttpProxyClientChannelInitializer extends ChannelInitializer<SocketChannel> implements ChannelHandler {
 
 
     @Value("${netty.target-ip}")
@@ -34,7 +34,7 @@ public class HttpProxyServerChannelInitializer extends ChannelInitializer<Socket
         ch.pipeline().addLast("httpObject",new HttpObjectAggregator(65536));
 //        ch.pipeline().addLast(new IdleStateHandler(10,0,0));
         //2.自定义处理Http的业务Handler
-        pipeline.addLast("httpProxyServerHandle",new HttpProxyServerHandle(targetIp,targetPort,rewriteHost));
+        pipeline.addLast("httpProxyServerHandle",new HttpProxyClientHandle(targetIp,targetPort,rewriteHost));
     }
 }
 

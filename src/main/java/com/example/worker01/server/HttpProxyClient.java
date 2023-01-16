@@ -17,7 +17,7 @@ import javax.annotation.PreDestroy;
 
 @Slf4j
 @Component
-public class HttpProxyServer {
+public class HttpProxyClient {
 
     @Value("${netty.port}")
     private int port;
@@ -28,7 +28,7 @@ public class HttpProxyServer {
 
 
     @Autowired
-    private HttpProxyServerChannelInitializer httpProxyServerChannelInitializer;
+    private HttpProxyClientChannelInitializer httpProxyClientChannelInitializer;
 
 
     /**
@@ -41,7 +41,7 @@ public class HttpProxyServer {
         ServerBootstrap serverBootstrap = new ServerBootstrap();
         serverBootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
-                .childHandler(httpProxyServerChannelInitializer)
+                .childHandler(httpProxyClientChannelInitializer)
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
                 .option(ChannelOption.SO_BACKLOG, 1024) //服务端可连接队列数,对应TCP/IP协议listen函数中backlog参数
                 .childOption(ChannelOption.TCP_NODELAY, true)//立即写出
