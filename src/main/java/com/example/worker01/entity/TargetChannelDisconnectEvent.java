@@ -9,13 +9,15 @@ import io.netty.channel.Channel;
  */
 public class TargetChannelDisconnectEvent {
 
-    private String type;  //  1是传递状态
-
-    public String getType() {
-        return type;
+    // 定义一个单例  用==来取代instanceOf提高性能
+    private static class TargetChannelDisconnectEventHolder {
+        private static TargetChannelDisconnectEvent instance = new TargetChannelDisconnectEvent();
     }
 
-    public void setType(String type) {
-        this.type = type;
+    private TargetChannelDisconnectEvent() {
+    }
+
+    public static TargetChannelDisconnectEvent getInstance() {
+        return TargetChannelDisconnectEventHolder.instance;
     }
 }
