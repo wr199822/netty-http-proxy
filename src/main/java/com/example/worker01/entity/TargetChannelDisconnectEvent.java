@@ -10,14 +10,12 @@ import io.netty.channel.Channel;
 public class TargetChannelDisconnectEvent {
 
     // 定义一个单例  用==来取代instanceOf提高性能
-    private static class TargetChannelDisconnectEventHolder {
-        private static TargetChannelDisconnectEvent instance = new TargetChannelDisconnectEvent();
-    }
+    private static TargetChannelDisconnectEvent instance = new TargetChannelDisconnectEvent();
 
     private TargetChannelDisconnectEvent() {
     }
 
     public static TargetChannelDisconnectEvent getInstance() {
-        return TargetChannelDisconnectEventHolder.instance;
+        return instance;
     }
 }

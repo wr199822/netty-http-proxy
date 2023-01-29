@@ -24,8 +24,7 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
             Throwable cause = future.cause();
             if (cause!=null){
                 future.cause().printStackTrace();
-//                ((FullHttpResponse)msg).release();
-                Unsafe.getUnsafe().freeMemory(((FullHttpResponse)msg).content().memoryAddress());
+                ((FullHttpResponse)msg).release();
             }
         });
     }

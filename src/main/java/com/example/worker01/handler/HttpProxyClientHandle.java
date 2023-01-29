@@ -65,9 +65,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                     Throwable cause = writeFuture.cause();
                     if (cause!=null){
                         writeFuture.cause().printStackTrace();
-//                        fullHttpRequest.content().release();
-                        //如何计算出需要释放内存空间的大小呢
-                        Unsafe.getUnsafe().freeMemory(fullHttpRequest.content().memoryAddress());
+                        fullHttpRequest.content().release();
                     }
                 });
             }
@@ -120,8 +118,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         int size = pendingRequestQueue.size();
         for (int i = 0; i < size; i++) {
             FullHttpRequest poll = pendingRequestQueue.poll();
-//            poll.content().release();
-            Unsafe.getUnsafe().freeMemory(poll.content().memoryAddress());
+            poll.content().release();
         }
     }
 
