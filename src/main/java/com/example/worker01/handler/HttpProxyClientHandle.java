@@ -8,6 +8,7 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
+import jdk.internal.misc.Unsafe;
 import lombok.extern.slf4j.Slf4j;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -38,7 +39,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    public void channelActive(ChannelHandlerContext ctx) {
         log.info("read 客户端channel{}", ctx.channel());
         targetChannelState = ServerChannelEnum.CONNECTING;
         connectServer(ctx);
@@ -72,7 +73,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+    public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
         request.headers().set("Host", rewriteHost);
         switch (targetChannelState){
@@ -89,7 +90,6 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 }
                 break;
             case READY:
-                HttpProxyConst.reducePendingRequestQueueGlobalSize();
                 serverCh.writeAndFlush(request);
                 break;
         }
@@ -106,7 +106,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
         releaseQueue();
         if (serverCh!=null){
             //如果在 连接中 serverCh被关闭就可能会有NPE异常
@@ -123,8 +123,8 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        if (evt instanceof TargetChannelDisconnectEvent){
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) {
+        if (evt == TargetChannelDisconnectEvent.getInstance()){
             serverCh = null;
             targetChannelState =  ServerChannelEnum.DISCONNECT;
         }
