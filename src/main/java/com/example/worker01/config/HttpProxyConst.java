@@ -18,7 +18,7 @@ public class HttpProxyConst {
      * 而因为netty设计的原因 负责请求转发的几个线程就几个所以很大概率是 同一个线程持有锁 ，不过也因为netty设计的原因 如果tps高的话那么还是很容易膨胀为重量级的锁
      *
      * 4.使用cas应该是比较合适的 因为它节省了阻塞线程而进行状态切换的时间 然后又因为这个netty中处理的线程是固定的 并不会照成长时间的自旋 如果tps太高的话 阻塞和等待应该也是在selector哪里等待了
-     * 等走到这一步应该是业务层面 并不会阻塞太长时间
+     * 等走到这一步应该是业务层面 所以cas自旋消耗的cpu性能是可预见的
      *
      * */
     private  static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
@@ -37,7 +37,7 @@ public class HttpProxyConst {
     }
 
     public static boolean checkPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize.get()<=PendingRequestQueueGlobalMaxSize;
+        return PendingRequestQueueGlobalSize.get()>=PendingRequestQueueGlobalMaxSize;
     }
 
     public static int getPendingRequestQueueGlobalSize() {
