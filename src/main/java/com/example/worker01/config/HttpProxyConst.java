@@ -40,17 +40,7 @@ public class HttpProxyConst {
     }
 
     public static boolean checkPendingRequestQueueGlobalSize() {
-        for (;;){
-            int i = checkLockStatus.get();
-            int update = ++i;
-            if (i>10000){
-                update = 0;
-            }
-            boolean b = checkLockStatus.compareAndSet(i, update);
-            if (b){
-                return PendingRequestQueueGlobalSize.get()>=PendingRequestQueueGlobalMaxSize;
-            }
-        }
+        return PendingRequestQueueGlobalSize.get()>PendingRequestQueueGlobalMaxSize;
     }
 
     public static int getPendingRequestQueueGlobalSize() {
