@@ -4,7 +4,6 @@ import com.example.worker01.entity.ClientChannelAttachEvent;
 import com.example.worker01.entity.TargetChannelDisconnectEvent;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.FullHttpResponse;
-import jdk.internal.misc.Unsafe;
 import lombok.extern.slf4j.Slf4j;
 
 

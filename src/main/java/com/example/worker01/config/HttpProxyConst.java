@@ -1,6 +1,7 @@
 package com.example.worker01.config;
 
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -23,6 +24,8 @@ public class HttpProxyConst {
      * */
     private  static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
 
+    private static AtomicInteger checkLockStatus = new AtomicInteger(0);
+
     public static int  PendingRequestQueueGlobalMaxSize = 10000;
 
     public  static int addPendingRequestQueueGlobalSize() {
@@ -37,7 +40,17 @@ public class HttpProxyConst {
     }
 
     public static boolean checkPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize.get()>=PendingRequestQueueGlobalMaxSize;
+        for (;;){
+            int i = checkLockStatus.get();
+            int update = ++i;
+            if (i>10000){
+                update = 0;
+            }
+            boolean b = checkLockStatus.compareAndSet(i, update);
+            if (b){
+                return PendingRequestQueueGlobalSize.get()>=PendingRequestQueueGlobalMaxSize;
+            }
+        }
     }
 
     public static int getPendingRequestQueueGlobalSize() {

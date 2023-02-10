@@ -8,7 +8,6 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
-import jdk.internal.misc.Unsafe;
 import lombok.extern.slf4j.Slf4j;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -81,7 +80,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 targetChannelState = ServerChannelEnum.CONNECTING;  //防止有多条消息 但是客户端正在连接
                 connectServer(ctx); //向后执行 保存这次的消息到queue中
             case CONNECTING:
-                if (pendingRequestQueue.size()>20&&HttpProxyConst.checkPendingRequestQueueGlobalSize()) {
+                if (pendingRequestQueue.size()>20||HttpProxyConst.checkPendingRequestQueueGlobalSize()) {
                     ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
                     ctx.close();
                 }
