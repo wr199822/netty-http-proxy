@@ -21,9 +21,9 @@ public class HttpProxyServerHandle extends ChannelInboundHandlerAdapter {
         fullHttpResponse = (FullHttpResponse) msg;
         channelFuture.addListener((ChannelFutureListener) future -> {
             Throwable cause = future.cause();
-            if (cause!=null){
+            if (cause != null) {
                 future.cause().printStackTrace();
-                ((FullHttpResponse)msg).release();
+                ((FullHttpResponse) msg).release();
             }
         });
     }

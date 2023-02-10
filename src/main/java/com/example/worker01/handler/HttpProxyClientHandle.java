@@ -44,7 +44,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         connectServer(ctx);
     }
 
-    private void connectServer(ChannelHandlerContext ctx){
+    private void connectServer(ChannelHandlerContext ctx) {
         EventLoop eventLoop = ctx.channel().eventLoop();
         Bootstrap bootstrap = BootstrapManage.getBootstrap(eventLoop);
         ChannelFuture cf = bootstrap.connect(targetIp, Integer.parseInt(targetPort));
@@ -60,13 +60,15 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             while (pendingRequestQueue.peek() != null) {
                 FullHttpRequest fullHttpRequest = pendingRequestQueue.poll();
                 HttpProxyConst.reducePendingRequestQueueGlobalSize();
-                serverCh.writeAndFlush(fullHttpRequest).addListener((ChannelFutureListener) writeFuture -> {
-                    Throwable cause = writeFuture.cause();
-                    if (cause!=null){
-                        writeFuture.cause().printStackTrace();
-                        fullHttpRequest.content().release();
-                    }
-                });
+                serverCh.writeAndFlush(fullHttpRequest)
+                        .addListener((ChannelFutureListener) writeFuture -> {
+                            Throwable cause = writeFuture.cause();
+                            if (cause != null) {
+                                writeFuture.cause().printStackTrace();
+                                //write 不管成功或者失败都不需要release
+                                //fullHttpRequest.content().release();
+                            }
+                        });
             }
         });
     }
@@ -75,25 +77,25 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
         request.headers().set("Host", rewriteHost);
-        switch (targetChannelState){
+        switch (targetChannelState) {
             case DISCONNECT:
                 targetChannelState = ServerChannelEnum.CONNECTING;  //防止有多条消息 但是客户端正在连接
                 connectServer(ctx); //向后执行 保存这次的消息到queue中
             case CONNECTING:
-                HttpProxyConst.addPendingRequestQueueGlobalSize();
-                if (pendingRequestQueue.size()>20||HttpProxyConst.checkPendingRequestQueueGlobalSize()) {
-                    ctx.channel().writeAndFlush(new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR, Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())));
-                    ctx.close();
+                if (pendingRequestQueue.size() > 20 || HttpProxyConst.checkPendingRequestQueueGlobalSize()) {
+                    ctx.channel().writeAndFlush(
+                            new DefaultFullHttpResponse(HttpVersion.HTTP_1_1,
+                                    HttpResponseStatus.INTERNAL_SERVER_ERROR,
+                                    Unpooled.wrappedBuffer("消息堆积过多,服务端连接异常".getBytes())))
+                            .addListener(ChannelFutureListener.CLOSE);
                 }
+                HttpProxyConst.addPendingRequestQueueGlobalSize();
                 pendingRequestQueue.offer(request);
                 break;
             case READY:
                 serverCh.writeAndFlush(request);
                 break;
         }
-
-
-
     }
 
     @Override
@@ -117,6 +119,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         for (int i = 0; i < size; i++) {
             FullHttpRequest poll = pendingRequestQueue.poll();
             poll.content().release();
+            HttpProxyConst.reducePendingRequestQueueGlobalSize();
         }
     }
 
