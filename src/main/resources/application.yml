@@ -1,5 +1,5 @@
 netty:
   port: 80
-  target-ip: 192.168.3.209
+  target-ip: 127.0.0.1
   target-port: 9009
   rewrite-host: www.baidu.com

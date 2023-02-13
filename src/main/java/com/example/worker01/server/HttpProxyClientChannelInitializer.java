@@ -16,6 +16,17 @@ import org.springframework.stereotype.Component;
 public class HttpProxyClientChannelInitializer extends ChannelInitializer<SocketChannel> implements ChannelHandler {
 
 
+    @Value("${netty.target-ip}")
+    private String targetIp;
+
+    @Value("${netty.target-port}")
+    private String targetPort;
+
+    @Value("${netty.rewrite-host}")
+    private String rewriteHost;
+
+
+
     @Override
     protected void initChannel(SocketChannel ch) throws Exception {
         ChannelPipeline pipeline = ch.pipeline();
@@ -23,7 +34,7 @@ public class HttpProxyClientChannelInitializer extends ChannelInitializer<Socket
         ch.pipeline().addLast("httpObject",new HttpObjectAggregator(65536));
 //        ch.pipeline().addLast(new IdleStateHandler(10,0,0));
         //2.自定义处理Http的业务Handler
-        pipeline.addLast("httpProxyServerHandle",new HttpProxyClientHandle());
+        pipeline.addLast("httpProxyServerHandle",new HttpProxyClientHandle(targetIp,targetPort,rewriteHost));
     }
 }
 

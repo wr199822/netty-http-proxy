@@ -51,8 +51,9 @@ public class LongConnTest {
                 ByteBuffer byteBuffer = ByteBuffer.allocate(5);
                 byteBuffer.put((byte) 1);
                 byteBuffer.putInt(0);
-                bufferedWriter.write("GET /heart HTTP/1.1\r\n");
+                bufferedWriter.write("GET /bearer HTTP/1.1\r\n");
                 bufferedWriter.write("Host: restapi.amap.com\r\n\r\n");
+                bufferedWriter.write("Authorization: 123456\r\n\r\n");
                 bufferedWriter.flush();
                 logger.debug("write heart finish!");
             } else if (code == 2) {
@@ -61,8 +62,9 @@ public class LongConnTest {
                 byteBuffer.put((byte) 2);
                 byteBuffer.putInt(content.length);
                 byteBuffer.put(content);
-                bufferedWriter.write("GET /wangrui HTTP/1.1\r\n");
+                bufferedWriter.write("GET /bearer HTTP/1.1\r\n");
                 bufferedWriter.write("Host: restapi.amap.com\r\n\r\n");
+                bufferedWriter.write("Authorization: 1234567\r\n\r\n");
                 bufferedWriter.flush();
                 logger.debug("write content finish!");
             }

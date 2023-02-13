@@ -27,6 +27,7 @@ public class BootstrapManage {
         if (bootstrap!=null) {
             return bootstrap;
         }
+        bootstrap = new Bootstrap();
         bootstrap.group(eventLoop) // 注册线程池
                 .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
                 .handler(new HttpProxyServerInitializer())

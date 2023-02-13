@@ -21,15 +21,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class HttpProxyConst {
 
-    @Value("${netty.target-ip}")
-    public static  String targetIp;
-
-    @Value("${netty.target-port}")
-    public static String targetPort;
-
-    @Value("${netty.rewrite-host}")
-    public static String rewriteHost;
-
+    public static ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(20,30,
+            10, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<Runnable>(10000));
 
     public static int  PendingRequestQueueGlobalMaxSize = 10000;
 
