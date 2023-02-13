@@ -1,7 +1,10 @@
 package com.example.worker01.config;
 
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -15,21 +18,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 等走到这一步应该是业务层面 所以cas自旋消耗的cpu性能是可预见的
  * @date 2023年01月15日 20:48
  */
+@Component
 public class HttpProxyConst {
 
-    private  static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
+    @Value("${netty.target-ip}")
+    public static  String targetIp;
+
+    @Value("${netty.target-port}")
+    public static String targetPort;
+
+    @Value("${netty.rewrite-host}")
+    public static String rewriteHost;
+
 
     public static int  PendingRequestQueueGlobalMaxSize = 10000;
 
-    public  static int addPendingRequestQueueGlobalSize() {
-        return PendingRequestQueueGlobalSize.getAndIncrement();
+    private  static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
+
+
+    public  static void addPendingRequestQueueGlobalSize() {
+        PendingRequestQueueGlobalSize.getAndIncrement();
     }
 
-    public static int reducePendingRequestQueueGlobalSize() {
-        if (PendingRequestQueueGlobalSize.get()<0){
-            return 0;
-        }
-        return PendingRequestQueueGlobalSize.getAndDecrement();
+    public static void reducePendingRequestQueueGlobalSize() {
+        reducePendingRequestQueueGlobalSize(1);
     }
 
     public static boolean checkPendingRequestQueueGlobalSize() {
@@ -41,4 +53,10 @@ public class HttpProxyConst {
     }
 
 
+    public static void reducePendingRequestQueueGlobalSize(int size) {
+        if (PendingRequestQueueGlobalSize.get()<0){
+            PendingRequestQueueGlobalSize.getAndSet(0);
+        }
+        PendingRequestQueueGlobalSize.getAndSet(PendingRequestQueueGlobalSize.get()-size);
+    }
 }
