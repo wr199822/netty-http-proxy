@@ -1,5 +1,6 @@
 package com.example.worker01.server;
 
+import com.example.worker01.config.HttpProxyConst;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
@@ -60,6 +61,7 @@ public class HttpProxyClient {
     public void destroy() {
         bossGroup.shutdownGracefully().syncUninterruptibly();
         workerGroup.shutdownGracefully().syncUninterruptibly();
+        HttpProxyConst.threadPoolExecutor.shutdown();
         log.info("关闭成功");
     }
 

@@ -23,7 +23,7 @@ public class HttpProxyConst {
 
     public static ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(20,30,
             10, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(10000));
+            new ArrayBlockingQueue<Runnable>(10000),new ThreadPoolExecutor.AbortPolicy());
 
     public static int  PendingRequestQueueGlobalMaxSize = 10000;
 

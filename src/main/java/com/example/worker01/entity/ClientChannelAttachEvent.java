@@ -14,7 +14,6 @@ public class ClientChannelAttachEvent {
 
     private Channel channel;
 
-
     public ClientChannelAttachEvent(Channel channel) {
         this.channel = channel;
     }
@@ -29,6 +28,4 @@ public class ClientChannelAttachEvent {
     public void setChannel(Channel channel) {
         this.channel = channel;
     }
-
-
 }
