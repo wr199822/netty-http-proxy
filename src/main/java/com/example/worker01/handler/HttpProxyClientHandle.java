@@ -10,20 +10,20 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
 
 @Slf4j
@@ -40,12 +40,12 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
 
     private ServerChannelEnum targetChannelState = ServerChannelEnum.INIT;
 
-    private volatile boolean replyStatus=true;
 
     private volatile boolean StartExcutorStatus=false;
 
 
-    private final ConcurrentLinkedQueue<FullHttpRequest> pendingRequestQueue = new ConcurrentLinkedQueue<>();
+    private Queue<FullHttpRequest> pendingRequestQueue = new LinkedList<>();
+    private final ConcurrentHashMap<FullHttpRequest,Boolean>  authenticationStatusMap = new ConcurrentHashMap<>();
 
     public HttpProxyClientHandle(String targetIp, String targetPort, String rewriteHost) {
         this.targetIp = targetIp;
@@ -74,35 +74,33 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 return;
             }
             serverCh = cf.channel();
-            targetChannelState = ServerChannelEnum.READY;
             serverCh.pipeline().fireUserEventTriggered(new ClientChannelAttachEvent(ctx.channel()));
-            submitTask(ctx);
-
+            if (pendingRequestQueue.peek() == null) {
+                targetChannelState = ServerChannelEnum.READY;
+                return;
+            }
+            serverCh.writeAndFlush(reduceQueue()).addListener(FIRE_EXCEPTION_ON_FAILURE);
+            targetChannelState = ServerChannelEnum.PENDING;
         });
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
-
+        request.headers().set("Host", rewriteHost);
         switch (targetChannelState) {
             case DISCONNECT:
                 targetChannelState = ServerChannelEnum.CONNECTING;  //防止有多条消息 但是客户端正在连接
+                addQueue(ctx, request);
                 connectServer(ctx); //向后执行 保存这次的消息到queue中
+                break;
             case CONNECTING:
+            case PENDING:
                 addQueue(ctx, request);
                 break;
             case READY:
-                if (pendingRequestQueue.peek() == null&& replyStatus){
-                    authenticationDoneWriting(ctx,request);
-                    return;
-                }else{
-                    addQueue(ctx,request);
-                }
-                if (!StartExcutorStatus){
-                    submitTask(ctx);
-                    StartExcutorStatus=true;
-                }
+                serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
+                targetChannelState = ServerChannelEnum.PENDING;
                 break;
         }
 
@@ -131,24 +129,29 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             serverCh = null;
             targetChannelState =  ServerChannelEnum.DISCONNECT;
         }else if (evt == ClientReplyStatusTransitionEvent.getInstance()){
-            replyStatus = true;
+            if (pendingRequestQueue.peek()==null){
+                targetChannelState = ServerChannelEnum.READY;
+                return;
+            }
+            serverCh.writeAndFlush(pendingRequestQueue.poll()).addListener(FIRE_EXCEPTION_ON_FAILURE);
+            targetChannelState = ServerChannelEnum.PENDING;
+
+
         }
     }
 
     private void submitTask(final ChannelHandlerContext ctx){
         try {
+
             //这里的线程调度是  netty中的eventLoop的线程执行完read之后把任务一提交 相当于这个消息以及被他消费了，
             //然后就是我们自己的线程池中的线程来消费这个剩下的步骤，因为这个channel并没有关闭，我们利用channel来执行剩下的步骤就行了
             HttpProxyConst.threadPoolExecutor.submit(() -> {
                 if (!ctx.channel().isActive()){
                     return;
                 }
-                while (pendingRequestQueue.peek() != null ) {
-                    if (replyStatus){
-                        FullHttpRequest request = reduceQueue();
-                        authenticationDoneWriting(ctx,request);
-                    }
-                }
+                //检测到了队列中的元素还没有鉴权就开始鉴权，并把剩下的元素也进行鉴权
+
+
                 StartExcutorStatus=false;
             });
         } catch (RejectedExecutionException e) {
@@ -168,13 +171,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             httpGet.setHeader(org.apache.http.HttpHeaders.AUTHORIZATION, authorization);
             org.apache.http.HttpResponse response = httpClient.execute(httpGet);
             if (response.getStatusLine().getStatusCode() == 200) {
-                serverCh.writeAndFlush(request).addListener((ChannelFutureListener) writeFuture -> {
-                    Throwable cause = writeFuture.cause();
-                    if (cause != null) {
-                        writeFuture.cause().printStackTrace();
-                    }
-                });
-                replyStatus = false;
+                serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
             } else {
                 abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
             }
@@ -226,7 +223,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
 
 
     private enum ServerChannelEnum{
-        INIT,CONNECTING,READY,DISCONNECT
+        INIT,CONNECTING,READY,PENDING,DISCONNECT
     }
 
 
