@@ -16,11 +16,8 @@ import org.apache.http.impl.client.HttpClients;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.RejectedExecutionException;
 
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
@@ -41,11 +38,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     private ServerChannelEnum targetChannelState = ServerChannelEnum.INIT;
 
 
-    private volatile boolean StartExcutorStatus=false;
-
-
     private Queue<FullHttpRequest> pendingRequestQueue = new LinkedList<>();
-    private final ConcurrentHashMap<FullHttpRequest,Boolean>  authenticationStatusMap = new ConcurrentHashMap<>();
 
     public HttpProxyClientHandle(String targetIp, String targetPort, String rewriteHost) {
         this.targetIp = targetIp;
@@ -76,10 +69,12 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             serverCh = cf.channel();
             serverCh.pipeline().fireUserEventTriggered(new ClientChannelAttachEvent(ctx.channel()));
             if (pendingRequestQueue.peek() == null) {
+                //说明是第一次连接
                 targetChannelState = ServerChannelEnum.READY;
                 return;
             }
-            serverCh.writeAndFlush(reduceQueue()).addListener(FIRE_EXCEPTION_ON_FAILURE);
+            //说明是重新连接
+            authenticationDoneWriting(ctx,reduceQueue());
             targetChannelState = ServerChannelEnum.PENDING;
         });
     }
@@ -87,7 +82,6 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
-        request.headers().set("Host", rewriteHost);
         switch (targetChannelState) {
             case DISCONNECT:
                 targetChannelState = ServerChannelEnum.CONNECTING;  //防止有多条消息 但是客户端正在连接
@@ -99,7 +93,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 addQueue(ctx, request);
                 break;
             case READY:
-                serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
+                authenticationDoneWriting(ctx,request);
                 targetChannelState = ServerChannelEnum.PENDING;
                 break;
         }
@@ -130,17 +124,18 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
             targetChannelState =  ServerChannelEnum.DISCONNECT;
         }else if (evt == ClientReplyStatusTransitionEvent.getInstance()){
             if (pendingRequestQueue.peek()==null){
+                //说明队列中处理完毕
                 targetChannelState = ServerChannelEnum.READY;
                 return;
             }
-            serverCh.writeAndFlush(pendingRequestQueue.poll()).addListener(FIRE_EXCEPTION_ON_FAILURE);
+            authenticationDoneWriting(ctx,reduceQueue());
             targetChannelState = ServerChannelEnum.PENDING;
 
 
         }
     }
 
-    private void submitTask(final ChannelHandlerContext ctx){
+    private void authenticationDoneWriting(ChannelHandlerContext ctx,FullHttpRequest request){
         try {
 
             //这里的线程调度是  netty中的eventLoop的线程执行完read之后把任务一提交 相当于这个消息以及被他消费了，
@@ -149,35 +144,30 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 if (!ctx.channel().isActive()){
                     return;
                 }
-                //检测到了队列中的元素还没有鉴权就开始鉴权，并把剩下的元素也进行鉴权
+                request.headers().set("Host", rewriteHost);
+                String authorization = request.headers().get("Authorization");
+                if (authorization == null) {
+                    abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization头不能为空");
+                }
+                try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+                    HttpGet httpGet = new HttpGet("http://121.4.47.125:880/bearer");
+                    httpGet.setHeader(org.apache.http.HttpHeaders.ACCEPT, "application/json");
+                    httpGet.setHeader(org.apache.http.HttpHeaders.AUTHORIZATION, authorization);
+                    org.apache.http.HttpResponse response = httpClient.execute(httpGet);
+                    if (response.getStatusLine().getStatusCode() == 200) {
+                        serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
+                    } else {
+                        abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
 
-
-                StartExcutorStatus=false;
             });
         } catch (RejectedExecutionException e) {
             abnormalWrite(ctx,HttpResponseStatus.SERVICE_UNAVAILABLE,"服务器负载过高");
         }
-    }
 
-    private void authenticationDoneWriting(ChannelHandlerContext ctx,FullHttpRequest request){
-        request.headers().set("Host", rewriteHost);
-        String authorization = request.headers().get("Authorization");
-        if (authorization == null) {
-            abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization头不能为空");
-        }
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpGet httpGet = new HttpGet("http://121.4.47.125:880/bearer");
-            httpGet.setHeader(org.apache.http.HttpHeaders.ACCEPT, "application/json");
-            httpGet.setHeader(org.apache.http.HttpHeaders.AUTHORIZATION, authorization);
-            org.apache.http.HttpResponse response = httpClient.execute(httpGet);
-            if (response.getStatusLine().getStatusCode() == 200) {
-                serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
-            } else {
-                abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
 
     }
 
