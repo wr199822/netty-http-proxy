@@ -1,6 +1,8 @@
 package com.example.worker01.config;
 
 
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Component
 public class HttpProxyConst {
+
+    public static CloseableHttpClient httpClient = HttpClients.createDefault();
 
     public static ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(20,30,
             10, TimeUnit.SECONDS,

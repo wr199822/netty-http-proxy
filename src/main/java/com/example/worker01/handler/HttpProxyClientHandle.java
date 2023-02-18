@@ -9,10 +9,10 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
+import io.netty.util.concurrent.DefaultPromise;
+import io.netty.util.concurrent.Promise;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -37,6 +37,10 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
 
     private ServerChannelEnum targetChannelState = ServerChannelEnum.INIT;
 
+    Promise<Object> promise = null;
+
+
+
 
     private Queue<FullHttpRequest> pendingRequestQueue = new LinkedList<>();
 
@@ -53,6 +57,7 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) {
         log.info("read 客户端channel{}", ctx.channel());
         targetChannelState = ServerChannelEnum.CONNECTING;
+        promise = new DefaultPromise<>(ctx.executor());
         connectServer(ctx);
     }
 
@@ -136,6 +141,19 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     private void authenticationDoneWriting(ChannelHandlerContext ctx,FullHttpRequest request){
+        authenticationTaskSubmit(ctx,request);
+        promise.addListeners(future -> {
+            if (promise.isSuccess()){
+                serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
+            }else{
+                abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
+            }
+        });
+
+
+    }
+
+    private void authenticationTaskSubmit(ChannelHandlerContext ctx,FullHttpRequest request){
         try {
 
             //这里的线程调度是  netty中的eventLoop的线程执行完read之后把任务一提交 相当于这个消息以及被他消费了，
@@ -148,16 +166,17 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 String authorization = request.headers().get("Authorization");
                 if (authorization == null) {
                     abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization头不能为空");
+                    return;
                 }
-                try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+                try{
                     HttpGet httpGet = new HttpGet("http://121.4.47.125:880/bearer");
                     httpGet.setHeader(org.apache.http.HttpHeaders.ACCEPT, "application/json");
                     httpGet.setHeader(org.apache.http.HttpHeaders.AUTHORIZATION, authorization);
-                    org.apache.http.HttpResponse response = httpClient.execute(httpGet);
+                    org.apache.http.HttpResponse response = HttpProxyConst.httpClient.execute(httpGet);
                     if (response.getStatusLine().getStatusCode() == 200) {
-                        serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
+                        promise.setSuccess(null);
                     } else {
-                        abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
+                        promise.setFailure(null);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -167,9 +186,9 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
         } catch (RejectedExecutionException e) {
             abnormalWrite(ctx,HttpResponseStatus.SERVICE_UNAVAILABLE,"服务器负载过高");
         }
-
-
     }
+
+
 
     //给客户端回写异常情况
     private void abnormalWrite(ChannelHandlerContext ctx, HttpResponseStatus httpCode, String message) {
