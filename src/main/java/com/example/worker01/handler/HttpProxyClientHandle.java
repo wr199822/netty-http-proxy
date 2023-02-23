@@ -11,6 +11,8 @@ import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import io.netty.util.concurrent.DefaultPromise;
 import io.netty.util.concurrent.Promise;
+import io.vertx.ext.auth.authentication.TokenCredentials;
+import io.vertx.ext.web.client.WebClient;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.methods.HttpGet;
 import org.springframework.stereotype.Component;
@@ -37,7 +39,8 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
 
     private ServerChannelEnum targetChannelState = ServerChannelEnum.INIT;
 
-    Promise<Object> promise = null;
+    private WebClient webClient = HttpProxyConst.getWebClient();
+
 
 
 
@@ -57,7 +60,6 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     public void channelActive(ChannelHandlerContext ctx) {
         log.info("read 客户端channel{}", ctx.channel());
         targetChannelState = ServerChannelEnum.CONNECTING;
-        promise = new DefaultPromise<>(ctx.executor());
         connectServer(ctx);
     }
 
@@ -141,7 +143,9 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
     }
 
     private void authenticationDoneWriting(ChannelHandlerContext ctx,FullHttpRequest request){
-        authenticationTaskSubmit(ctx,request);
+        request.headers().set("Host", rewriteHost);
+        String authorization = request.headers().get("Authorization");
+        ChannelPromise promise = ctx.channel().newPromise();
         promise.addListeners(future -> {
             if (promise.isSuccess()){
                 serverCh.writeAndFlush(request).addListener(FIRE_EXCEPTION_ON_FAILURE);
@@ -149,46 +153,21 @@ public class HttpProxyClientHandle extends ChannelInboundHandlerAdapter {
                 abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization失败");
             }
         });
-
-
-    }
-
-    private void authenticationTaskSubmit(ChannelHandlerContext ctx,FullHttpRequest request){
-        try {
-
-            //这里的线程调度是  netty中的eventLoop的线程执行完read之后把任务一提交 相当于这个消息以及被他消费了，
-            //然后就是我们自己的线程池中的线程来消费这个剩下的步骤，因为这个channel并没有关闭，我们利用channel来执行剩下的步骤就行了
-            HttpProxyConst.threadPoolExecutor.submit(() -> {
-                if (!ctx.channel().isActive()){
-                    return;
-                }
-                request.headers().set("Host", rewriteHost);
-                String authorization = request.headers().get("Authorization");
-                if (authorization == null) {
-                    abnormalWrite(ctx,HttpResponseStatus.UNAUTHORIZED,"Authorization头不能为空");
-                    return;
-                }
-                try{
-                    HttpGet httpGet = new HttpGet("http://121.4.47.125:880/bearer");
-                    httpGet.setHeader(org.apache.http.HttpHeaders.ACCEPT, "application/json");
-                    httpGet.setHeader(org.apache.http.HttpHeaders.AUTHORIZATION, authorization);
-                    org.apache.http.HttpResponse response = HttpProxyConst.httpClient.execute(httpGet);
-                    if (response.getStatusLine().getStatusCode() == 200) {
+        webClient.get(880, "121.4.47.125", "/bearer")
+                .authentication(new TokenCredentials(authorization))
+                .send()
+                .onSuccess(response -> {
+                    if (response.statusCode() == 200) {
                         promise.setSuccess(null);
                     } else {
                         promise.setFailure(null);
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
                 }
-
-            });
-        } catch (RejectedExecutionException e) {
-            abnormalWrite(ctx,HttpResponseStatus.SERVICE_UNAVAILABLE,"服务器负载过高");
-        }
+                ).onFailure(err -> {
+                    System.out.println("Something went wrong " + err.getMessage());
+                    promise.setFailure(err);
+                });
     }
-
-
 
     //给客户端回写异常情况
     private void abnormalWrite(ChannelHandlerContext ctx, HttpResponseStatus httpCode, String message) {

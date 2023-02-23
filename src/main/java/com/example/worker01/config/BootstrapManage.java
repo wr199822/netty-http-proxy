@@ -35,7 +35,6 @@ public class BootstrapManage {
                 .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000);
         bootstrapMap.put(eventLoop, bootstrap);
         return bootstrap;
-
     }
 
     

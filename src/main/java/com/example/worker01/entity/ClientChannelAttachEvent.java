@@ -18,14 +18,8 @@ public class ClientChannelAttachEvent {
         this.channel = channel;
     }
 
-    public ClientChannelAttachEvent() {
-    }
-
     public Channel getChannel() {
         return channel;
     }
 
-    public void setChannel(Channel channel) {
-        this.channel = channel;
-    }
 }

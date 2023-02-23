@@ -1,11 +1,15 @@
 package com.example.worker01.config;
 
 
+import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
+import io.vertx.ext.web.client.WebClient;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.lang.model.element.VariableElement;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -23,16 +27,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class HttpProxyConst {
 
-    public static CloseableHttpClient httpClient = HttpClients.createDefault();
+//    public static CloseableHttpClient httpClient = HttpClients.createDefault();
+   public static ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(20, 30,
+        10, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(10000),
+        new ThreadPoolExecutor.AbortPolicy());
+    public static int PendingRequestQueueGlobalMaxSize = 10000;
 
-    public static ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(20,30,
-            10, TimeUnit.SECONDS,
-            new ArrayBlockingQueue<Runnable>(10000),new ThreadPoolExecutor.AbortPolicy());
+    private static Vertx vertx = Vertx.vertx(new VertxOptions().setEventLoopPoolSize(4));
 
-    public static int  PendingRequestQueueGlobalMaxSize = 10000;
+    private static WebClient webClient = WebClient.create(vertx);
 
     private  static AtomicInteger PendingRequestQueueGlobalSize = new AtomicInteger(0);
-
 
     public  static void addPendingRequestQueueGlobalSize() {
         PendingRequestQueueGlobalSize.getAndIncrement();
@@ -56,5 +61,9 @@ public class HttpProxyConst {
             PendingRequestQueueGlobalSize.getAndSet(0);
         }
         PendingRequestQueueGlobalSize.getAndSet(PendingRequestQueueGlobalSize.get()-size);
+    }
+
+    public static WebClient getWebClient(){
+        return webClient;
     }
 }
